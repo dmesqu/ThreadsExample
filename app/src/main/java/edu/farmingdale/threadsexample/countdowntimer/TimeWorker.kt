@@ -3,6 +3,8 @@ package edu.farmingdale.threadsexample.countdowntimer
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -29,10 +31,8 @@ class TimerWorker(context: Context, parameters: WorkerParameters) :
         if (remainingMillis == 0L) {
             return Result.failure()
         }
-
         // Create notification channel for all notifications
         createTimerNotificationChannel()
-
         // Post notifications every second until no time remains
         while (remainingMillis > 0) {
             postTimerNotification(timerText(remainingMillis))
@@ -40,17 +40,24 @@ class TimerWorker(context: Context, parameters: WorkerParameters) :
             remainingMillis -= 1000
         }
 
-        // Post final notification
         postTimerNotification("Timer is finished!")
-
+        Log.d("TimerSound", "Playing timer finished sound (Worker)")
+        //my solution todo7
+        val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+        toneGen.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 1000)
+        toneGen.release()
         return Result.success()
     }
+
 
     private fun createTimerNotificationChannel() {
         // Notification channels only available on O and above
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID_TIMER, "Timer Channel",
-                NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(
+                CHANNEL_ID_TIMER,
+                "Timer Channel",
+                NotificationManager.IMPORTANCE_LOW
+            )
             channel.description = "Displays how much time is left"
 
             // Register channel

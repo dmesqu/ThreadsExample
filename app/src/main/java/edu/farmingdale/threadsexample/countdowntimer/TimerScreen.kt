@@ -1,5 +1,8 @@
 package edu.farmingdale.threadsexample.countdowntimer
 
+import TimerViewModel
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.util.Log
 import android.widget.NumberPicker
 import androidx.compose.animation.core.LinearEasing
@@ -18,14 +21,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -40,6 +43,49 @@ fun TimerScreen(
     modifier: Modifier = Modifier,
     timerViewModel: TimerViewModel = viewModel()
 ) {
+    val totalMillis = timerViewModel.totalMillis
+    val remainingMillis = timerViewModel.remainingMillis
+
+    // progress value for the circular indicator
+    val targetProgress =
+        if (timerViewModel.isRunning && totalMillis > 0L) {
+            remainingMillis.toFloat() / totalMillis.toFloat()
+        } else {
+            0f
+        }
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = targetProgress,
+        animationSpec = tween(durationMillis = 500, easing = LinearEasing),
+        label = "timerProgress"
+    )
+    //my solution todo5
+
+    val isLastTenSeconds =
+        timerViewModel.isRunning && remainingMillis in 1_000L..10_000L
+    //my solution todo8
+
+    var hasPlayedSound by remember { mutableStateOf(false) }
+
+    LaunchedEffect(remainingMillis, totalMillis, timerViewModel.isRunning) {
+        if (remainingMillis == 0L && totalMillis > 0L && !hasPlayedSound) {
+            hasPlayedSound = true
+
+            Log.d("TimerSound", "Playing timer finished sound (foreground)")
+            //my solution todo7
+
+            val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+            toneGen.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 1000)
+            toneGen.release()
+        }
+
+        if (timerViewModel.isRunning) {
+            // Allow beep again next time
+            hasPlayedSound = false
+        }
+    }
+    //my solution todo7
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = modifier
@@ -47,13 +93,26 @@ fun TimerScreen(
                 .size(240.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (timerViewModel.isRunning) {
-
+            if (timerViewModel.isRunning && totalMillis > 0L) {
+                CircularProgressIndicator(
+                    progress = animatedProgress,
+                    modifier = Modifier.size(240.dp)
+                )
+                //my solution todo5
             }
+
             Text(
                 text = timerText(timerViewModel.remainingMillis),
-                fontSize = 40.sp,
+                fontSize = 56.sp,                // still larger than original 40.sp
+                //my solution todo4
+                color = if (isLastTenSeconds) Color.Red else Color.Unspecified,
+                fontWeight = if (isLastTenSeconds) FontWeight.Bold else FontWeight.Normal,
+                //my solution todo8
+                maxLines = 1,
+                softWrap = false
+                //my solution todo4
             )
+
         }
         TimePicker(
             hour = timerViewModel.selectedHour,
@@ -61,34 +120,48 @@ fun TimerScreen(
             sec = timerViewModel.selectedSecond,
             onTimePick = timerViewModel::selectTime
         )
-        if (timerViewModel.isRunning) {
-            Button(
-                onClick = timerViewModel::cancelTimer,
-                modifier = modifier.padding(50.dp)
-            ) {
-                Text("Cancel")
+
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            modifier = modifier.padding(top = 50.dp)
+        ) {
+            if (timerViewModel.isRunning) {
+                Button(
+                    onClick = timerViewModel::cancelTimer,
+                    modifier = modifier
+                ) {
+                    Text("Cancel")
+                }
+            } else {
+                Button(
+                    enabled = timerViewModel.selectedHour +
+                            timerViewModel.selectedMinute +
+                            timerViewModel.selectedSecond > 0,
+                    onClick = timerViewModel::startTimer,
+                    modifier = modifier
+                ) {
+                    Text("Start")
+                }
             }
-        } else {
+
             Button(
-                enabled = timerViewModel.selectedHour +
-                        timerViewModel.selectedMinute +
-                        timerViewModel.selectedSecond > 0,
-                onClick = timerViewModel::startTimer,
-                modifier = modifier.padding(top = 50.dp)
+                onClick = timerViewModel::resetTimer,
+                enabled = timerViewModel.totalMillis > 0L,
+                modifier = modifier.padding(start = 16.dp)
             ) {
-                Text("Start")
+                Text("Reset")
             }
+            //my solution todo6
         }
     }
 }
 
-
-
 fun timerText(timeInMillis: Long): String {
     val duration: Duration = timeInMillis.milliseconds
     return String.format(
-        Locale.getDefault(),"%02d:%02d:%02d",
-        duration.inWholeHours, duration.inWholeMinutes % 60, duration.inWholeSeconds % 60)
+        Locale.getDefault(), "%02d:%02d:%02d",
+        duration.inWholeHours, duration.inWholeMinutes % 60, duration.inWholeSeconds % 60
+    )
 }
 
 @Composable
@@ -158,7 +231,7 @@ fun NumberPickerWrapper(
     AndroidView(
         factory = { context ->
             NumberPicker(context).apply {
-                setOnValueChangedListener { numberPicker, oldVal, newVal -> onNumPick(newVal) }
+                setOnValueChangedListener { _, _, newVal -> onNumPick(newVal) }
                 minValue = minVal
                 maxValue = maxVal
                 value = initVal

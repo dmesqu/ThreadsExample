@@ -1,5 +1,3 @@
-package edu.farmingdale.threadsexample.countdowntimer
-
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -67,6 +65,13 @@ class TimerViewModel : ViewModel() {
             remainingMillis = 0
         }
     }
+
+    fun resetTimer() {
+        timerJob?.cancel()
+        remainingMillis = totalMillis
+        isRunning = false
+    }
+    //my solution todo6
 
     override fun onCleared() {
         super.onCleared()
